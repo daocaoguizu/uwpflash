@@ -55,6 +55,7 @@ int set_parity(int fd,int databits,int stopbits,int parity)
 		perror("SetupSerial 1");     
 		return -1;
 	}
+#if 0
 	options.c_cflag &= ~CSIZE; 
 	switch (databits) /*设置数据位数*/
 	{   
@@ -115,13 +116,28 @@ int set_parity(int fd,int databits,int stopbits,int parity)
 	tcflush(fd,TCOFLUSH);
 	options.c_cc[VTIME] = 150; /* 设置超时15 seconds*/   
 	options.c_cc[VMIN] = 0; /* Update the options and do it NOW */
+#endif
+cfmakeraw(&options);
+
+    options.c_cflag |= CS8;
+    options.c_cflag &= ~CSTOPB;
+    options.c_cflag &= ~PARENB;
+    options.c_cflag |= (CLOCAL | CREAD);
+
+    options.c_cc[VMIN]=1;
+    options.c_cc[VTIME]=0;
+
+    // we flush the port
+    tcflush(fd,TCOFLUSH);
+    tcflush(fd,TCIFLUSH);
+
+
+
 	if (tcsetattr(fd,TCSANOW,&options) != 0)   
 	{ 
 		perror("SetupSerial 3");   
 		return -1;
 	} 
-	options.c_lflag  &= ~(ICANON | ECHO | ECHOE | ISIG);  /*Input*/
-	options.c_oflag  &= ~OPOST;   /*Output*/
 
 	return 0;
 }
@@ -218,7 +234,7 @@ int uart_recv(char *buf, int len)
 
 	readlen = read(tty_fd, buf, len);
 
-#if 0
+#if 1
 	printf("uart recv %d bytes.\n", readlen);
 	if (readlen > 0) {
 		for(i = 0; i < readlen; i++) {

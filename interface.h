@@ -1,3 +1,4 @@
+#ifndef _INTERFACE_H_
 
 typedef void (*notify_func)(void);
 struct interface {
@@ -13,3 +14,5 @@ extern int intf_send(unsigned char *data, unsigned int len,
 		int need_crc, int timeout);
 extern int intf_recv(unsigned char *data, unsigned int len,
 		int timeout);
+
+#endif

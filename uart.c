@@ -3,6 +3,7 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/file.h>
 #include <fcntl.h>
 #include <termios.h>
 #include <pthread.h>
@@ -16,6 +17,16 @@ int speed_arr[] = {B115200, B38400, B19200, B9600, B4800, B2400, B1200, B300,
 					   B115200, B38400, B19200, B9600, B4800, B2400, B1200, B300, };
 int name_arr[] = {115200, 38400, 19200, 9600, 4800, 2400, 1200,  300, 
 					  115200, 38400, 19200, 9600, 4800, 2400, 1200,  300, };
+
+int uart_clear(void) {
+	tcflush(tty_fd, TCOFLUSH);
+	return 0;
+}
+
+int uart_drain(void) {
+	tcdrain(tty_fd);
+	return 0;
+}
 
 void set_speed(int fd, int speed){
 	int   i; 
@@ -62,7 +73,7 @@ int set_parity(int fd,int databits,int stopbits,int parity)
 		case 'n':
 		case 'N':    
 			options.c_cflag &= ~PARENB;   /* Clear parity enable */
-			options.c_iflag &= ~INPCK;     /* Enable parity checking */ 
+//			options.c_iflag &= ~INPCK;     /* Enable parity checking */ 
 			break;  
 		case 'o':   
 		case 'O':     
@@ -96,10 +107,12 @@ int set_parity(int fd,int databits,int stopbits,int parity)
 			perror("Unsupported stop bits");  
 			return -1;
 	} 
+	options.c_cflag |= (CLOCAL | CREAD);
 	/* Set input parity option */ 
-	if (parity != 'n')   
-		options.c_iflag |= INPCK; 
+//	if (parity != 'n')   
+//		options.c_iflag |= INPCK; 
 	tcflush(fd,TCIFLUSH);
+	tcflush(fd,TCOFLUSH);
 	options.c_cc[VTIME] = 150; /* 设置超时15 seconds*/   
 	options.c_cc[VMIN] = 0; /* Update the options and do it NOW */
 	if (tcsetattr(fd,TCSANOW,&options) != 0)   
@@ -215,16 +228,6 @@ int uart_recv(char *buf, int len)
 	}
 #endif
 	return readlen;
-}
-
-int uart_clear(void) {
-	tcflush(tty_fd, TCOFLUSH);
-	return 0;
-}
-
-int uart_drain(void) {
-	tcdrain(tty_fd);
-	return 0;
 }
 
 int uart_register_notify(notify_func func)

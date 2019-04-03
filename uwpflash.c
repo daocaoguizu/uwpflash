@@ -5,6 +5,7 @@
 
 #include "command.h"
 #include "interface.h"
+#include "download.h"
 #include "fdl.h"
 
 #define VERSION	"0.0.1"
@@ -141,7 +142,7 @@ int main(int argc,char **argv)
 	}
 
 	for (fobj = p->flist; fobj != NULL; fobj = fobj->next) {
-		ret = dl_flash(fobj->fname, fobj->next);
+		ret = dl_flash(fobj->fname, fobj->addr);
 		if (ret < 0) {
 			printf("download file %s failed.\n", fobj->fname);
 			return ret;

@@ -11,6 +11,7 @@
 #include <string.h>
 
 #include "command.h"
+#include "interface.h"
 
 #define MAX_DATA_LEN 528
 enum DL_STATE {
@@ -200,14 +201,14 @@ void *dl_flash_thread(void *arg)
 				dl_set_state(DL_TIMEOUT, 5);
 			printf("\n* STOP...\t\t\t");
 			fflush(stdout);
-			cmd_stop();
+			cmd_stop(1000);
 			break;
 		case DL_EXECUTE:
 			if (is_timeout)
 				dl_set_state(DL_TIMEOUT, 5);
 			printf("* FLASH...\t\t\t");
 			fflush(stdout);
-			cmd_exec();
+			cmd_exec(1000);
 			break;
 		case DL_SUCCESS:
 			printf("* SUCCESS\n\n");

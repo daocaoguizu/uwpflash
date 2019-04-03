@@ -1,3 +1,5 @@
+#ifndef _COMMAND_H_
+
 #define FLAG_BYTE               0x7E
 enum CMD_TYPE
 {
@@ -141,3 +143,9 @@ static inline unsigned int le32(unsigned int num)
 
 extern int cmd_connect(int timeout);
 extern int cmd_check_bandrate(int timeout);
+extern int cmd_send_data(unsigned char * addr, unsigned int len);
+extern int cmd_send_start(unsigned int addr, unsigned int len);
+extern int cmd_exec(int timeout);
+extern int cmd_stop(int timeout);
+
+#endif

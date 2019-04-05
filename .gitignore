@@ -2,4 +2,5 @@ cscope.*
 *.o
 *.bin
 *.swp
+*.patch
 uwpflash

@@ -73,7 +73,7 @@ int set_parity(int fd,int databits,int stopbits,int parity)
 		case 'n':
 		case 'N':    
 			options.c_cflag &= ~PARENB;   /* Clear parity enable */
-//			options.c_iflag &= ~INPCK;     /* Enable parity checking */ 
+			options.c_iflag &= ~INPCK;     /* Enable parity checking */ 
 			break;  
 		case 'o':   
 		case 'O':     
@@ -94,7 +94,7 @@ int set_parity(int fd,int databits,int stopbits,int parity)
 			perror("Unsupported parity");    
 			return -1;
 	}  
-	/* 设置停止位*/  
+
 	switch (stopbits)
 	{   
 		case 1:    
@@ -108,9 +108,12 @@ int set_parity(int fd,int databits,int stopbits,int parity)
 			return -1;
 	} 
 	options.c_cflag |= (CLOCAL | CREAD);
+	options.c_cflag &= ~CRTSCTS;
+
 	/* Set input parity option */ 
-//	if (parity != 'n')   
-//		options.c_iflag |= INPCK; 
+	if (parity != 'n')
+		options.c_iflag |= INPCK;
+
 	tcflush(fd,TCIFLUSH);
 	tcflush(fd,TCOFLUSH);
 	options.c_cc[VTIME] = 150; /* 设置超时15 seconds*/   

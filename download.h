@@ -3,6 +3,6 @@
 
 extern int dl_init(void);
 extern int dl_flash_fdl(unsigned char *fdl, unsigned int len, unsigned int addr);
-extern int dl_flash(char *fname, unsigned int addr);
+extern int dl_flash_file(char *fname, unsigned int addr);
 
 #endif

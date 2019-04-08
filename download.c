@@ -13,19 +13,10 @@
 #include "command.h"
 #include "interface.h"
 
-#define MAX_DATA_LEN 528
-enum DL_STATE {
-	DL_INIT,
-	DL_CHECK_BAND,
-	DL_CONNECT,
-	DL_SEND_HEADER,
-	DL_SEND_BIN,
-	DL_FINISH,
-	DL_EXECUTE,
-	DL_SUCCESS,
-	DL_TIMEOUT,
-	DL_TERMINATE,
-};
+#define MAX_DATA_LEN 1024
+#define RECV_BUF_LEN 1024
+#define MAX_PERCENT	(50)
+#define CHECK_BANDRATE_TIME_SEC	(10)
 
 struct dl_file
 {
@@ -40,23 +31,8 @@ struct dl_file
 
 static unsigned char *data_buf;
 static struct dl_file dl_file;
-static enum DL_STATE dl_state;
-static sem_t dl_sem;
-static sem_t flash_sem;
-static int dl_timeout;
 
-pthread_t tid_flash;
 pthread_t tid_recv;
-
-#define RECV_BUF_LEN	1024
-
-void dl_set_state(enum DL_STATE state, int timeout) {
-	dl_state = state;
-	dl_timeout = timeout;
-
-	//printf("state: %d, timeout: %d.\n", state, timeout);
-	sem_post(&dl_sem);
-}
 
 void *dl_recv_thread(void *arg)
 {
@@ -77,174 +53,129 @@ void *dl_recv_thread(void *arg)
 
 			if ((pkt_hdr->type == BSL_REP_VER) ||
 				(pkt_hdr->type == BSL_REP_ACK)){
-				switch (dl_state) {
-				case DL_CHECK_BAND:
-				case DL_CONNECT:
-				case DL_SEND_HEADER:
-				case DL_FINISH:
-				case DL_EXECUTE:
-					printf("Done\n");
-					fflush(stdout);
-					dl_set_state(dl_state + 1, 20);
-					break;
-				case DL_SEND_BIN:
-					dl_set_state(DL_SEND_BIN, 5);
-					break;
-				default:
-					break;
-				}
+				cmd_resp();
+			} else {
+				printf("Unknown header type: 0x%x.\n",
+						pkt_hdr->type);
 			}
 		}
 	}
 }
 
-#define MAX_PERCENT	100
-
 int dl_send_data(void)
 {
 	int i;
+	int ret;
 	struct dl_file *pfile = &dl_file;
 	unsigned int data_len;
 	unsigned int dl_percent;
 
-	if (pfile->pos == 0) {
-		for (i = 0; i < MAX_PERCENT; i++) {
-			printf("-");
+	for (i = 0; i < MAX_PERCENT; i++) {
+		printf("-");
+	}
+	fflush(stdout);
+	for (i = 0; i < MAX_PERCENT; i++) {
+		printf("\b");
+	}
+
+	while (1) {
+		data_len = pfile->len - pfile->pos;
+
+		if (data_len == 0)
+			break;
+
+		if (data_len > MAX_DATA_LEN)
+			data_len = MAX_DATA_LEN;
+
+		if (pfile->is_fdl) {
+			memcpy(data_buf, pfile->fdl_buf + pfile->pos, data_len);
+		} else {
+			lseek(pfile->fd, pfile->pos, SEEK_SET);
+
+			data_len = read(pfile->fd, data_buf, data_len);
 		}
-		fflush(stdout);
-		for (i = 0; i < MAX_PERCENT; i++) {
-			printf("\b");
+
+		pfile->pos += data_len;
+
+		dl_percent = pfile->pos * MAX_PERCENT / pfile->len;
+		for (i = pfile->print_percent; i < dl_percent; i++) {
+			printf(">");
+			fflush(stdout);
 		}
-	}
+		pfile->print_percent = dl_percent;
 
-	data_len = pfile->len - pfile->pos;
-
-	if (data_len > MAX_DATA_LEN)
-		data_len = MAX_DATA_LEN;
-
-	if (pfile->is_fdl) {
-		memcpy(data_buf, pfile->fdl_buf + pfile->pos, data_len);
-	} else {
-		lseek(pfile->fd, pfile->pos, SEEK_SET);
-
-		data_len = read(pfile->fd, data_buf, data_len);
-		//printf("pos: %d, len: %d.\n", pfile->pos, data_len);
-	}
-
-	pfile->pos += data_len;
-
-	dl_percent = pfile->pos * 100 / pfile->len;
-	for (i = pfile->print_percent; i < dl_percent; i++) {
-		printf(">");
-		fflush(stdout);
-	}
-	pfile->print_percent = dl_percent;
-
-	cmd_send_data(data_buf, data_len);
-
-	if (pfile->pos == pfile->len) {
-		dl_set_state(DL_FINISH, 20);
-		return -1;
+		ret = cmd_send_data(data_buf, data_len);
+		if (ret < 0) {
+			printf("\n");
+			return ret;
+		}
 	}
 
 	return 0;
 }
 
-void *dl_flash_thread(void *arg)
+int dl_check_bandrate(void)
 {
-	int ret;
-	int is_timeout;
-	struct timespec wait_time;
+	int i;
+	printf("* CHECKING BANDRATE...  \t");
+	fflush(stdout);
 
-	while (1) {
-		is_timeout = 0;
-		clock_gettime(CLOCK_REALTIME, &wait_time);
-		wait_time.tv_sec += dl_timeout;
-		ret = sem_timedwait(&dl_sem, &wait_time);
-		if ((ret == -1) && (errno == ETIMEDOUT)) {
-			is_timeout = 1;
-			//printf("state %d timeout.\n", dl_state);
+	for (i = 0; i < CHECK_BANDRATE_TIME_SEC; i++) {
+		if (cmd_check_bandrate(1) == 0) {
+			printf("Done\n");
+			fflush(stdout);
+			return 0;
 		}
-
-		switch (dl_state) {
-		case DL_INIT:
-			break;
-		case DL_CHECK_BAND:
-//			if (is_timeout)
-//				dl_set_state(DL_CONNECT, 5);
-			//sleep(1);
-			cmd_check_bandrate(1000);
-			break;
-		case DL_CONNECT:
-			if (is_timeout)
-				dl_set_state(DL_TIMEOUT, 5);
-
-			printf("* CONNECTING...\t\t\t");
-			fflush(stdout);
-			cmd_connect(1000);
-			break;
-		case DL_SEND_HEADER:
-			if (is_timeout)
-				dl_set_state(DL_TIMEOUT, 5);
-
-			printf("* START...\t\t\t");
-			fflush(stdout);
-			cmd_send_start(dl_file.addr, dl_file.len);
-			break;
-		case DL_SEND_BIN:
-			if (is_timeout)
-				dl_set_state(DL_TIMEOUT, 5);
-			dl_send_data();
-			break;
-		case DL_FINISH:
-			if (is_timeout)
-				dl_set_state(DL_TIMEOUT, 5);
-			printf("\n* STOP...\t\t\t");
-			fflush(stdout);
-			cmd_stop(1000);
-			break;
-		case DL_EXECUTE:
-			if (is_timeout)
-				dl_set_state(DL_TIMEOUT, 5);
-			printf("* FLASH...\t\t\t");
-			fflush(stdout);
-			cmd_exec(1000);
-			break;
-		case DL_SUCCESS:
-			printf("* SUCCESS\n\n");
-			sem_post(&flash_sem);
-			break;
-		case DL_TIMEOUT:
-			sem_post(&flash_sem);
-			break;
-		default:
-			break;
-		}
-
 	}
+
+	return -1;
 }
 
-int dl_wait(void)
+int dl_flash(int is_fdl)
 {
 	int ret;
-	struct timespec wait_time;
 
-	clock_gettime(CLOCK_REALTIME, &wait_time);
-	wait_time.tv_sec += 120;
-	ret = sem_timedwait(&flash_sem, &wait_time);
-	if ((ret == -1) && (errno == ETIMEDOUT)) {
-		printf("TIMEOUT\n");
-		return -1;
+	printf("* CONNECTING...\t\t\t");
+	fflush(stdout);
+	ret = cmd_connect(5);
+	if (ret < 0) return ret;
+	printf("Done\n");
+	fflush(stdout);
+
+	printf("* START...\t\t\t");
+	fflush(stdout);
+	ret = cmd_send_start(dl_file.addr, dl_file.len);
+	if (ret < 0) return ret;
+	printf("Done\n");
+	fflush(stdout);
+
+	ret = dl_send_data();
+	if (ret < 0) return ret;
+
+	printf("\n* STOP...\t\t\t");
+	fflush(stdout);
+	ret = cmd_stop(5);
+	if (ret < 0) return ret;
+	printf("Done\n");
+	fflush(stdout);
+
+	if (is_fdl) {
+		printf("* RUN...\t\t\t");
+		fflush(stdout);
+		ret = cmd_exec(10);
+		if (ret < 0) return ret;
+		printf("Done\n");
+		fflush(stdout);
 	}
 
-	if (dl_state != DL_SUCCESS)
-		return -1;
+	printf("* SUCCESS\n\n");
 
 	return 0;
 }
 
 int dl_flash_fdl(unsigned char *fdl, unsigned int len, unsigned int addr)
 {
+	int ret;
 	struct dl_file *pfile = &dl_file;
 
 	memset((void*)pfile, 0, sizeof(struct dl_file));
@@ -254,14 +185,14 @@ int dl_flash_fdl(unsigned char *fdl, unsigned int len, unsigned int addr)
 	pfile->fdl_buf = fdl;
 
 	printf("download FDL (%d bytes)\n", pfile->len);
-	printf("* CHECKING BANDRATE...  \t");
-	fflush(stdout);
-	dl_set_state(DL_CHECK_BAND, 1);
 
-	return dl_wait();
+	ret = dl_check_bandrate();
+	if (ret < 0) return ret;
+
+	return dl_flash(1);
 }
 
-int dl_flash(char *fname, unsigned int addr)
+int dl_flash_file(char *fname, unsigned int addr)
 {
 	int ret;
 	struct dl_file *pfile = &dl_file;
@@ -283,19 +214,13 @@ int dl_flash(char *fname, unsigned int addr)
 
 	printf("download file %s (%d bytes)\n", fname, pfile->len);
 
-	dl_set_state(DL_CONNECT, 5);
 	
-	return dl_wait();
+	return dl_flash(0);
 }
 
 int dl_init(void)
 {
 	int ret;
-
-	dl_state = DL_INIT;
-	sem_init(&dl_sem, 0, 0);
-	sem_init(&flash_sem, 0, 0);
-	dl_timeout = 5;
 
 	data_buf = malloc(MAX_DATA_LEN);
 	if (data_buf == NULL) {
@@ -304,12 +229,6 @@ int dl_init(void)
 	}
 
 	ret = pthread_create(&tid_recv, NULL, dl_recv_thread, NULL);
-	if (ret) {
-		perror("create pthread failed");
-		return ret;
-	}
-
-	ret = pthread_create(&tid_flash, NULL, dl_flash_thread, NULL);
 	if (ret) {
 		perror("create pthread failed");
 		return ret;

@@ -8,7 +8,7 @@
 #include "download.h"
 #include "fdl.h"
 
-#define VERSION	"0.0.1"
+#define VERSION	"v0.0.2"
 #define AUTHOR "Dong Xiang <dong.xiang@unisoc.com>"
 
 struct fobject {
@@ -76,7 +76,6 @@ int main(int argc,char **argv)
 
 	printf("UNISOC uwpflash tool.\n");
 	printf("Version:\t" VERSION "\n");
-	printf("Author:\t\t" AUTHOR "\n\n");
 
 	while ((opt = getopt (argc, argv, "t:d:vf:a:h")) != -1) {
 		switch (opt) {
@@ -128,6 +127,13 @@ int main(int argc,char **argv)
 		return ret;
 	}
 
+	ret = cmd_init();
+	if (ret < 0) {
+		printf("command init failed.\n");
+		return ret;
+	}
+
+
 	ret = dl_init();
 	if (ret < 0) {
 		printf("download init failed.\n");
@@ -142,7 +148,7 @@ int main(int argc,char **argv)
 	}
 
 	for (fobj = p->flist; fobj != NULL; fobj = fobj->next) {
-		ret = dl_flash(fobj->fname, fobj->addr);
+		ret = dl_flash_file(fobj->fname, fobj->addr);
 		if (ret < 0) {
 			printf("download file %s failed.\n", fobj->fname);
 			return ret;

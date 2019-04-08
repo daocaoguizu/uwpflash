@@ -1,20 +1,33 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <termios.h>
+#include <pthread.h>
+#include <semaphore.h>
+#include <errno.h>
 #include <string.h>
 
 #include "interface.h"
 #include "command.h"
 
+static sem_t cmd_sem;
+
 int send_command(int cmd, int timeout)
 {
+	int ret;
 	struct packet_header pkt_hdr;
 
 	pkt_hdr.type = le16(cmd);
 	pkt_hdr.size = 0;
 
-	return intf_send((unsigned char *)&pkt_hdr,
+	ret = intf_send((unsigned char *)&pkt_hdr,
 			sizeof(pkt_hdr), 1, timeout);
+	if (ret < 0) return ret;
+
+	return cmd_wait(timeout);
 }
 
 int send_data(int type, unsigned char *data,
@@ -39,12 +52,7 @@ int send_data(int type, unsigned char *data,
 
 	src = (unsigned int *)data;
 	dest = (unsigned int *)(buf + sizeof(struct packet_header));
-#if 0
 
-	for (i = 0; i < (len / 4); i++) {
-		*dest++ = (unsigned int)le32(*src++);
-	}
-#endif
 	memcpy((void *)dest, (void *)src, len); 
 
 	ret = intf_send(buf, buf_len, 1, timeout);
@@ -54,7 +62,7 @@ int send_data(int type, unsigned char *data,
 	}
 
 	free(buf);
-	return 0;
+	return cmd_wait(timeout);
 }
 
 struct packet_start
@@ -95,9 +103,42 @@ int cmd_exec(int timeout)
 }
 
 
-int cmd_check_bandrate(int timeout) {
-	unsigned char check_val = 0x7E;
+int cmd_check_bandrate(int timeout)
+{
+	int ret;
+	unsigned char check_val = BSL_CMD_CHECK_BAUD;
 
-	return intf_send(&check_val, sizeof(check_val),
+	ret = intf_send(&check_val, sizeof(check_val),
 			0, timeout);
+	if (ret < 0) return ret;
+
+	return cmd_wait(timeout);
+}
+
+int cmd_wait(int timeout)
+{
+	int ret;
+	struct timespec wait_time;
+
+	clock_gettime(CLOCK_REALTIME, &wait_time);
+	wait_time.tv_sec += timeout;
+	ret = sem_timedwait(&cmd_sem, &wait_time);
+	if ((ret == -1) && (errno == ETIMEDOUT)) {
+//		printf("TIMEOUT\n");
+		return -1;
+	}
+
+	return 0;
+}
+
+void cmd_resp(void)
+{
+	sem_post(&cmd_sem);
+}
+
+int cmd_init(void)
+{
+	sem_init(&cmd_sem, 0, 0);
+
+	return 0;
 }

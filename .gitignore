@@ -4,3 +4,4 @@ cscope.*
 *.swp
 *.patch
 uwpflash
+bin2array

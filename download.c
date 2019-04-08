@@ -85,7 +85,7 @@ void *dl_recv_thread(void *arg)
 				case DL_EXECUTE:
 					printf("Done\n");
 					fflush(stdout);
-					dl_set_state(dl_state + 1, 5);
+					dl_set_state(dl_state + 1, 20);
 					break;
 				case DL_SEND_BIN:
 					dl_set_state(DL_SEND_BIN, 5);
@@ -143,7 +143,7 @@ int dl_send_data(void)
 	cmd_send_data(data_buf, data_len);
 
 	if (pfile->pos == pfile->len) {
-		dl_set_state(DL_FINISH, 5);
+		dl_set_state(DL_FINISH, 20);
 		return -1;
 	}
 
@@ -230,7 +230,7 @@ int dl_wait(void)
 	struct timespec wait_time;
 
 	clock_gettime(CLOCK_REALTIME, &wait_time);
-	wait_time.tv_sec += 60;
+	wait_time.tv_sec += 120;
 	ret = sem_timedwait(&flash_sem, &wait_time);
 	if ((ret == -1) && (errno == ETIMEDOUT)) {
 		printf("TIMEOUT\n");

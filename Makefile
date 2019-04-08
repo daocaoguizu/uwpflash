@@ -1,6 +1,6 @@
-TARGET := uwpflash
-CFLAGS := -lpthread
-LD_FLAGS := -lpthread
+TARGET		:= uwpflash
+DIST_TARGET := /usr/bin/uwpflash
+LD_FLAGS	:= -lpthread
 
 objects := $(patsubst %.c,%.o,$(wildcard *.c))
 
@@ -9,4 +9,7 @@ $(TARGET) : $(objects)
 
 .PHONY:clean
 clean :
-	$(RM) -rf $(TARGET) $(objects)
+	@ $(RM) -rf $(TARGET) $(objects)
+
+install:
+	install $(TARGET) $(DIST_TARGET)

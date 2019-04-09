@@ -14,6 +14,7 @@
 #include "command.h"
 
 static sem_t cmd_sem;
+int cmd_wait(int timeout);
 
 int send_command(int cmd, int timeout)
 {

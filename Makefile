@@ -1,7 +1,7 @@
 BIN2ARRAY	:= bin2array
 UWPFLASH	:= uwpflash
 TARGET		:= $(BIN2ARRAY) $(UWPFLASH)
-DIST_TARGET := /usr/bin/uwpflash
+DIST_TARGET := /usr/bin/
 LD_FLAGS	:= -lpthread
 
 UWPFLASH_objs  := uwpflash.o command.o uart.o download.o interface.o crc.o crc16.o

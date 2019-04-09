@@ -12,10 +12,7 @@ all : $(TARGET)
 $(BIN2ARRAY) : $(BIN2ARRAY_objs)
 	$(CC) -o $(BIN2ARRAY) $(BIN2ARRAY_objs)
 
-fdl.h : fdl.bin
-	./$(BIN2ARRAY)
-
-$(UWPFLASH) : $(UWPFLASH_objs) fdl.h
+$(UWPFLASH) : $(UWPFLASH_objs)
 	$(CC) -o $(UWPFLASH) $(UWPFLASH_objs) $(LD_FLAGS)
 
 .PHONY:clean

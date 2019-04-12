@@ -154,7 +154,7 @@ int dl_flash(int is_fdl)
 
 	printf("\n* STOP...\t\t\t");
 	fflush(stdout);
-	ret = cmd_stop(5);
+	ret = cmd_stop(20);
 	if (ret < 0) return ret;
 	printf("Done\n");
 	fflush(stdout);
